@@ -66,18 +66,18 @@ const ChecklistAgendamento = () => {
   };
 
   return (
-    <div className=\"p-4 space-y-6\">
-      <div className=\"flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4\">
-        <h1 className=\"text-2xl font-bold\">Check-list de Agendamento Semanal</h1>
+    <div className="p-4 space-y-6">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+        <h1 className="text-2xl font-bold">Check-list de Agendamento Semanal</h1>
         {modoCoordenador ? (
           <Button onClick={() => setModoCoordenador(false)}>
             Sair do Modo Coordenador
           </Button>
         ) : (
-          <div className=\"flex gap-2\">
+          <div className="flex gap-2">
             <Input
-              type=\"password\"
-              placeholder=\"Senha do coordenador\"
+              type="password"
+              placeholder="Senha do coordenador"
               value={senha}
               onChange={e => setSenha(e.target.value)}
             />
@@ -87,10 +87,10 @@ const ChecklistAgendamento = () => {
       </div>
 
       {atendentes.map((nome) => (
-        <Card key={nome} className=\"shadow-md\">
-          <CardContent className=\"p-4\">
-            <h2 className=\"text-xl font-semibold mb-4\">{nome}</h2>
-            <Tabs defaultValue=\"semanal\">
+        <Card key={nome} className="shadow-md">
+          <CardContent className="p-4">
+            <h2 className="text-xl font-semibold mb-4">{nome}</h2>
+            <Tabs defaultValue="semanal">
               <TabsList>
                 {categorias.map(cat => (
                   <TabsTrigger key={cat} value={cat}>{cat.toUpperCase()}</TabsTrigger>
@@ -98,13 +98,13 @@ const ChecklistAgendamento = () => {
               </TabsList>
 
               {categorias.map(cat => (
-                <TabsContent key={cat} value={cat} className=\"mt-4\">
-                  <div className=\"space-y-2\">
-                    <ul className=\"space-y-1\">
+                <TabsContent key={cat} value={cat} className="mt-4">
+                  <div className="space-y-2">
+                    <ul className="space-y-1">
                       {(tarefas[nome]?.[cat] || []).map((tarefa, index) => {
                         const atrasada = verificarAtraso(tarefa, cat);
                         return (
-                          <li key={index} className=\"flex items-center gap-2\">
+                          <li key={index} className="flex items-center gap-2">
                             <Checkbox checked={tarefa.feito} onCheckedChange={() => alternarFeito(nome, cat, index)} />
                             <span className={`${tarefa.feito ? 'line-through text-gray-500' : ''} ${atrasada ? 'text-red-600 font-semibold' : ''}`}>
                               {tarefa.texto} {atrasada && '(Em atraso)'}
@@ -114,7 +114,7 @@ const ChecklistAgendamento = () => {
                       })}
                     </ul>
                     {modoCoordenador && (
-                      <div className=\"flex gap-2\">
+                      <div className="flex gap-2">
                         <Input
                           placeholder={`Adicionar tarefa ${cat}`}
                           value={novaTarefa}
