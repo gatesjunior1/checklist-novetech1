@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SISREG Consulta (Standalone)</title>
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,sans-serif;margin:0;background:#f6f7f9;color:#111;}
+    header{padding:18px 20px;background:white;border-bottom:1px solid #e5e7eb;}
+    h1{margin:0;font-size:18px;}
+    main{max-width:1100px;margin:18px auto;padding:0 14px;}
+    .card{background:white;border:1px solid #e5e7eb;border-radius:12px;padding:14px;box-shadow:0 1px 2px rgba(0,0,0,.04);}
+    .grid{display:grid;grid-template-columns:repeat(12,1fr);gap:10px;}
+    label{font-size:12px;color:#444;display:block;margin-bottom:6px;}
+    input,select{width:100%;padding:10px;border:1px solid #d1d5db;border-radius:10px;font-size:14px;}
+    button{padding:10px 14px;border:1px solid #111;border-radius:10px;background:#111;color:#fff;font-size:14px;cursor:pointer;}
+    button:disabled{opacity:.6;cursor:not-allowed;}
+    .muted{color:#6b7280;font-size:12px;}
+    table{width:100%;border-collapse:collapse;margin-top:12px;}
+    th,td{border-top:1px solid #e5e7eb;padding:10px;vertical-align:top;font-size:13px;}
+    th{font-size:12px;text-transform:uppercase;letter-spacing:.02em;color:#4b5563;background:#fafafa;position:sticky;top:0;}
+    .pill{display:inline-block;padding:2px 8px;border-radius:999px;border:1px solid #e5e7eb;background:#fafafa;font-size:12px;color:#374151;}
+    .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
+    .right{margin-left:auto;}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,Liberation Mono,monospace;}
+    .danger{color:#b91c1c;}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="row">
+      <h1>SISREG Consulta <span class="pill">HTML único</span></h1>
+      <div class="right muted">Dica: este HTML consome a API do seu servidor (mesmo projeto).</div>
+    </div>
+  </header>
+
+  <main>
+    <div class="card">
+      <div class="grid">
+        <div style="grid-column: span 4;">
+          <label>Base URL da API</label>
+          <input id="baseUrl" placeholder="ex.: http://localhost:5173" />
+          <div class="muted">Deixe vazio para usar o mesmo domínio atual.</div>
+        </div>
+        <div style="grid-column: span 2;">
+          <label>Índice</label>
+          <select id="indexType">
+            <option value="solicitacao">Solicitações (Fila)</option>
+            <option value="marcacao">Marcações</option>
+          </select>
+        </div>
+        <div style="grid-column: span 2;">
+          <label>Modo</label>
+          <select id="mode">
+            <option value="fila">fila</option>
+            <option value="quick">quick</option>
+            <option value="novas">novas</option>
+            <option value="agendadas">agendadas</option>
+            <option value="atendidas">atendidas</option>
+          </select>
+          <div class="muted">(Para Solicitação, use <span class="mono">fila</span>)</div>
+        </div>
+        <div style="grid-column: span 2;">
+          <label>Data início</label>
+          <input id="dateStart" type="date" />
+        </div>
+        <div style="grid-column: span 2;">
+          <label>Data fim</label>
+          <input id="dateEnd" type="date" />
+        </div>
+
+        <div style="grid-column: span 6;">
+          <label>Buscar Procedimento</label>
+          <input id="procedimento" placeholder="ex.: cardio ou 0301010010" />
+        </div>
+        <div style="grid-column: span 2;">
+          <label>Tamanho</label>
+          <input id="size" type="number" min="1" max="1000" value="50" />
+        </div>
+        <div style="grid-column: span 2;">
+          <label>Offset</label>
+          <input id="from" type="number" min="0" value="0" />
+        </div>
+        <div style="grid-column: span 2;display:flex;align-items:end;gap:10px;">
+          <button id="btn" onclick="run()">Consultar</button>
+        </div>
+      </div>
+
+      <div id="status" class="muted" style="margin-top:10px;"></div>
+      <div id="error" class="danger" style="margin-top:8px;"></div>
+
+      <div style="overflow:auto; max-height: 65vh;">
+        <table id="tbl" hidden>
+          <thead>
+            <tr>
+              <th>Código</th>
+              <th>Descrição Procedimento</th>
+              <th>Grupo</th>
+              <th>Paciente</th>
+              <th>Unidade Solicitante</th>
+              <th>Data Solicitação</th>
+              <th>Situação</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+
+  // Ajusta o combo de modo dependendo do índice
+  function syncModeOptions(){
+    const indexType = $("indexType").value;
+    const mode = $("mode");
+    const allowed = indexType === "solicitacao" ? ["fila"] : ["quick","novas","agendadas","atendidas"];
+    [...mode.options].forEach(opt => opt.hidden = !allowed.includes(opt.value));
+    if (!allowed.includes(mode.value)) mode.value = allowed[0];
+  }
+  $("indexType").addEventListener("change", syncModeOptions);
+  syncModeOptions();
+
+  function formatDescricaoProcedimento(hit){
+    const v = hit.descricao_interna_procedimento;
+    if (v !== null && v !== undefined && String(v).trim() !== "") return String(v);
+
+    // fallback: SIGTAP e campos alternativos (sem usar grupo)
+    const alt = [
+      hit.descricao_sigtap_procedimento,
+      hit.descricao_procedimento,
+      hit.nome_procedimento,
+      hit.procedimento,
+    ].find(x => x !== null && x !== undefined && String(x).trim() !== "");
+    if (alt) return String(alt);
+
+    if (hit.codigo_interno_procedimento) return `Código: ${hit.codigo_interno_procedimento}`;
+    return "-";
+  }
+
+  // tRPC helper (batch mutation) compatível com o setup do projeto
+  async function trpcMutation(apiBase, procedurePath, input){
+    const url = `${apiBase}/api/trpc/${procedurePath}?batch=1`;
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      // Formato batch do tRPC v10: objeto indexado
+      body: JSON.stringify({ 0: { json: input } }),
+      credentials: "include",
+    });
+
+    const json = await res.json();
+    const item = Array.isArray(json) ? json[0] : json;
+    const data = item?.result?.data?.json;
+    const error = item?.error;
+
+    if (!res.ok || error) {
+      const message = error?.message || data?.errorMessage || `Falha HTTP ${res.status}`;
+      throw new Error(message);
+    }
+    return data;
+  }
+
+  async function run(){
+    const btn = $("btn");
+    btn.disabled = true;
+    $("error").textContent = "";
+    $("status").textContent = "Consultando...";
+    $("tbl").hidden = true;
+    $("tbl").querySelector("tbody").innerHTML = "";
+
+    const base = $("baseUrl").value.trim();
+    const apiBase = base ? base.replace(/\/$/, "") : "";
+
+    const payload = {
+      indexType: $("indexType").value,
+      mode: $("mode").value,
+      size: Number($("size").value || 50),
+      from: Number($("from").value || 0),
+    };
+    const ds = $("dateStart").value;
+    const de = $("dateEnd").value;
+    if (ds && de){ payload.dateStart = ds; payload.dateEnd = de; }
+
+    const proc = $("procedimento").value.trim();
+    if (proc) payload.procedimentoSearch = proc;
+
+    try{
+      // Importante: este procedimento existe no seu projeto (server/routers.ts -> search.execute)
+      const data = await trpcMutation(apiBase, "search.execute", payload);
+      if (!data?.ok){
+        throw new Error(data?.errorMessage || "Erro na consulta.");
+      }
+
+      $("status").textContent = `${data.total} registro(s) • took ${data.took ?? "-"}ms`;
+
+      const tbody = $("tbl").querySelector("tbody");
+      for (const hit of (data.hits || [])){
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td class="mono">${hit.codigo_interno_procedimento ?? "-"}</td>
+          <td>${escapeHtml(formatDescricaoProcedimento(hit))}</td>
+          <td>${escapeHtml(hit.nome_grupo_procedimento ?? "-")}</td>
+          <td>${escapeHtml(hit.no_usuario ?? "-")}</td>
+          <td>${escapeHtml(hit.nome_unidade_solicitante ?? "-")}</td>
+          <td>${escapeHtml(hit.data_solicitacao ?? "-")}</td>
+          <td>${escapeHtml(hit.sigla_situacao ?? hit.status_solicitacao ?? "-")}</td>
+        `;
+        tbody.appendChild(tr);
+      }
+
+      $("tbl").hidden = false;
+    }catch(err){
+      $("error").textContent = err?.message || String(err);
+      $("status").textContent = "";
+    }finally{
+      btn.disabled = false;
+    }
+  }
+
+  function escapeHtml(str){
+    return String(str)
+      .replaceAll("&","&amp;")
+      .replaceAll("<","&lt;")
+      .replaceAll(">","&gt;")
+      .replaceAll('"',"&quot;")
+      .replaceAll("'","&#039;");
+  }
+</script>
+</body>
+</html>
